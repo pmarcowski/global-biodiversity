@@ -1,3 +1,5 @@
+![Screenshot](screenshot.png)
+
 # Biodiversity observations: Shiny app for species mapping and timeline analysis
 This Shiny application visualizes biodiversity observations from the Global Biodiversity Information Facility (GBIF). Users can explore species occurrences on an interactive map and view the timeline of observations over the years. The app focuses on observations from Poland and provides features such as species search by vernacular and scientific names, detailed observation popups, and a timeline of species sightings.
 
