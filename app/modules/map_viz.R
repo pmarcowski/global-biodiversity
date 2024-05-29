@@ -1,0 +1,26 @@
+# Title: Map visualization module for the biodiversity observations Shiny app
+# Author: Przemyslaw Marcowski, PhD
+# Email: p.marcowski@gmail.com
+# Date: 2024-05-28
+# Copyright (c) 2024 Przemyslaw Marcowski
+
+# This module provides the UI and server logic for the map visualization
+# functionality in the biodiversity observations Shiny app.
+
+# UI function for the map module
+mapUI <- function(id) {
+  ns <- NS(id)
+  leafletOutput(ns("map"), height = 600)
+}
+
+# Server function for the map module
+mapServer <- function(id, map_data, color_palette) {
+  moduleServer(id, function(input, output, session) {
+    ns <- session$ns
+
+    output$map <- renderLeaflet({
+      req(map_data())
+      render_map(map_data(), color_palette)
+    })
+  })
+}
