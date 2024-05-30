@@ -70,7 +70,7 @@ render_map <- function(map_data, color_palette) {
       data = map_data,
       lng = ~longitudeDecimal, lat = ~latitudeDecimal,
       popup = ~paste0(
-        ifelse(!is.na(accessURI), paste("<img src='", accessURI, "' height='100'><br>"), "No image available<br>"),
+        ifelse(!is.na(accessURI), paste("<img src='", accessURI, "' height='300'><br>"), "No image available<br>"),
         "<i>", scientificName, "</i><br>", tolower(vernacularName),
         "<br>", eventDate,
         ifelse(!is.na(creator), paste0("<br>Credit: ", creator), "")
