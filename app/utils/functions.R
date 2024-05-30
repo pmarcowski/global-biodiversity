@@ -70,10 +70,13 @@ render_map <- function(map_data, color_palette) {
       data = map_data,
       lng = ~longitudeDecimal, lat = ~latitudeDecimal,
       popup = ~paste0(
-        ifelse(!is.na(accessURI), paste("<img src='", accessURI, "' height='300'><br>"), "No image available<br>"),
-        "<i>", scientificName, "</i><br>", tolower(vernacularName),
-        "<br>", eventDate,
-        ifelse(!is.na(creator), paste0("<br>Credit: ", creator), "")
+        ifelse(!is.na(accessURI), paste("<img src='", accessURI, "' height='300'><br><br>"), "No image available<br><br>"),
+        "<div style='white-space: nowrap;'>",
+        "<strong>Scientific name: </strong><em>", scientificName, "</em><br>", 
+        "<strong>Vernacular name: </strong>", tolower(vernacularName), "<br>", 
+        "<strong>Date: </strong>", ifelse(!is.na(eventDate), as.character(eventDate), "No date available"), "<br>", 
+        "<strong>Observer: </strong>", ifelse(!is.na(creator), creator, "No observer available"),
+        "</div>"
       ),
       radius = 5, stroke = FALSE, color = ~color_palette(scientificName),
       fillOpacity = 0.5
