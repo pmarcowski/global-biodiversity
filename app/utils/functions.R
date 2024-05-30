@@ -7,12 +7,28 @@
 # This script contains utility functions used in the biodiversity
 # observations Shiny app.
 
+preprocess_query <- function(query) {
+  # Preprocesses species name query by normalizing characters and removing any 
+  # non-alphanumeric characters, such as special characters, punctuation marks, 
+  # and whitespaces.
+  #
+  # Args:
+  #   query: A character string or vector of character strings to be preprocessed.
+  #
+  # Returns:
+  #   The preprocessed query with normalized and non-alphanumeric characters 
+  #   removed.
+  query <- stri_trans_general(query, "Latin-ASCII")
+  query <- gsub("[^[:alnum:]]", "", query)
+  query
+}
+
 search_species <- function(search_query, dt) {
   # Searches for species in the occurrence data table based on a search query.
   # It looks for matches in both the vernacular and scientific names of the species.
-  # The function is case-insensitive and handles leading/trailing whitespaces.
-  # If the search query is empty or consists only of whitespaces, an empty data.table 
-  # is returned.
+  # The function is case-insensitive. If the search query is empty, an empty 
+  # data.table is returned. The search query is preprocessed using the preprocess_query 
+  # function to remove non-alphanumeric characters.
   #
   # Args:
   #   search_query: A character string containing the search query.
@@ -21,8 +37,8 @@ search_species <- function(search_query, dt) {
   # Returns:
   #   A data.table filtered to include only records that match the search query.
   #   If the search query is empty or consists only of whitespaces, an empty 
-  # data.table is returned.
-  search_query <- trimws(search_query)
+  #   data.table is returned.
+  search_query <- preprocess_query(search_query)
   
   if (search_query == "") {
     return(dt[0])
@@ -33,7 +49,8 @@ search_species <- function(search_query, dt) {
 }
 
 filter_species <- function(dt, species) {
-  # Filters the occurrence data table to include only records for the specified species.
+  # Filters the occurrence data table to include only records for the specified 
+  # species. It uses data.table's binary search feature for faster filtering.
   #
   # Args:
   #   dt: A data.table containing the occurrence data.
@@ -41,7 +58,7 @@ filter_species <- function(dt, species) {
   #
   # Returns:
   #   A data.table filtered to include only records for the specified species.
-  dt[scientificName == species]
+  dt[scientificName == species, on = "scientificName"]
 }
 
 count_by_year <- function(dt) {

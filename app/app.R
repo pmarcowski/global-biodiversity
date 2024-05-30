@@ -15,6 +15,7 @@
 library(shiny)
 library(bslib)
 library(data.table)
+library(stringi)
 library(leaflet)
 library(plotly)
 library(lubridate)
