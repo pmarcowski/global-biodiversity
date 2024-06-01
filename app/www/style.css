@@ -1,0 +1,130 @@
+/* Popup styles */
+
+.leaflet-popup-content {
+  width: auto !important;
+  height: auto !important;
+}
+
+/* Navbar styles */
+
+.navbar {
+  min-height: 50px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Card styles */
+
+.card {
+  border-radius: 0 !important;
+}
+
+/* Info button styles */
+
+.info-button {
+  font-size: 16px;
+  color: #2DC86F;
+  cursor: pointer;
+  margin-right: 15px;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.info-button:hover,
+.info-button:active,
+.info-button:focus {
+  color: #2DC86F;
+  background: none;
+  border: none;
+  outline: none;
+  box-shadow: none;
+}
+
+/* Modal styles */
+
+.modal-content {
+  border-radius: 0;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+}
+
+.modal-title {
+  font-size: 18px;
+  font-weight: bold;
+  margin: 0;
+}
+
+.close {
+  font-size: 18px;
+  color: #2DC86F;
+  opacity: 0.8;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.close:hover {
+  color: #27ae60;
+  opacity: 1;
+  background: none;
+  border: none;
+}
+
+.modal-body {
+  padding: 15px;
+}
+
+/* Link styles */
+
+.dataset-link {
+  display: inline-block;
+  padding: 8px 12px;
+  background-color: #2DC86F;
+  border: none;
+  text-decoration: none;
+  color: #000;
+  margin-top: 10px;
+}
+
+/* Radio button styles */
+
+.radio-inline {
+  margin-bottom: 10px;
+}
+
+.radio-inline input[type='radio'] {
+  display: none;
+}
+
+.radio-inline input[type='radio'] + span {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin: -1px 4px 0 0;
+  vertical-align: middle;
+  cursor: pointer;
+  border-radius: 50%;
+  border: 2px solid #ccc;
+  background-color: #fff;
+}
+
+.radio-inline input[type='radio']:checked + span {
+  background-color: #2DC86F;
+  border-color: #2DC86F;
+}
+
+/* Title header styles */
+
+.title-header {
+  font-size: 18px;
+  font-weight: bold;
+}
