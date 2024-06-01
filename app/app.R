@@ -87,7 +87,7 @@ server <- function(input, output, session) {
               class = "close",
               `data-dismiss` = "modal",
               onclick = "Shiny.setInputValue('close_modal', true, {priority: 'event'});",
-              icon("times"), ""
+              icon("times"), " Close"
             )
           )
         ),
