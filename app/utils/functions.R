@@ -8,27 +8,28 @@
 # observations Shiny app.
 
 preprocess_query <- function(query) {
-  # Preprocesses species name query by normalizing characters and removing any 
-  # non-alphanumeric characters, such as special characters, punctuation marks, 
-  # and whitespaces.
+  # Preprocesses species name query by removing diacritics, converting to
+  # lowercase, and removing any non-alphanumeric characters, such as special
+  # characters, punctuation marks, and whitespaces.
   #
   # Args:
   #   query: A character string or vector of character strings to be preprocessed.
   #
   # Returns:
-  #   The preprocessed query with normalized and non-alphanumeric characters 
-  #   removed.
-  query <- stri_trans_general(query, "Latin-ASCII")
+  #   The preprocessed query with diacritics removed, converted to lowercase,
+  #   and non-alphanumeric characters removed.
+  query <- iconv(query, to = "ASCII//TRANSLIT")
+  query <- tolower(query)
   query <- gsub("[^[:alnum:]]", "", query)
   query
 }
 
 search_species <- function(search_query, dt) {
   # Searches for species in the occurrence data table based on a search query.
-  # It looks for matches in both the vernacular and scientific names of the species.
-  # The function is case-insensitive. If the search query is empty, an empty 
-  # data.table is returned. The search query is preprocessed using the preprocess_query 
-  # function to remove non-alphanumeric characters.
+  # It looks for matches in both the vernacular and scientific names of the
+  # species. The function is case-insensitive. If the search query is empty,
+  # an empty data.table is returned. The search query is preprocessed using
+  # the preprocess_query function to remove non-alphanumeric characters.
   #
   # Args:
   #   search_query: A character string containing the search query.
@@ -36,20 +37,20 @@ search_species <- function(search_query, dt) {
   #
   # Returns:
   #   A data.table filtered to include only records that match the search query.
-  #   If the search query is empty or consists only of whitespaces, an empty 
+  #   If the search query is empty or consists only of whitespaces, an empty
   #   data.table is returned.
   search_query <- preprocess_query(search_query)
-  
+
   if (search_query == "") {
     return(dt[0])
   }
-  
+
   dt[grepl(search_query, vernacularName, ignore.case = TRUE) |
-       grepl(search_query, scientificName, ignore.case = TRUE)]
+    grepl(search_query, scientificName, ignore.case = TRUE)]
 }
 
 filter_species <- function(dt, species) {
-  # Filters the occurrence data table to include only records for the specified 
+  # Filters the occurrence data table to include only records for the specified
   # species. It uses data.table's binary search feature for faster filtering.
   #
   # Args:
@@ -72,12 +73,12 @@ count_by_year <- function(dt) {
   dt[, .N, by = .(year = year(eventDate))]
 }
 
-render_map <- function(map_data, color_palette) {
+render_map <- function(map_data, color) {
   # Creates a leaflet map to visualize species occurrences.
   #
   # Args:
   #   map_data: A data.table containing the map data.
-  #   color_palette: A color palette function for species coloring.
+  #   color: A color for species coloring.
   #
   # Returns:
   #   A leaflet map object.
@@ -86,19 +87,19 @@ render_map <- function(map_data, color_palette) {
     addCircleMarkers(
       data = map_data,
       lng = ~longitudeDecimal, lat = ~latitudeDecimal,
-      popup = ~paste0(
+      popup = ~ paste0(
         ifelse(!is.na(accessURI), paste("<img src='", accessURI, "' height='300'><br><br>"), "No image available<br><br>"),
         "<div style='white-space: nowrap;'>",
-        "<strong>Scientific name: </strong><em>", scientificName, "</em><br>", 
-        "<strong>Vernacular name: </strong>", tolower(vernacularName), "<br>", 
-        "<strong>Date: </strong>", ifelse(!is.na(eventDate), as.character(eventDate), "No date available"), "<br>", 
+        "<strong>Scientific name: </strong><em>", scientificName, "</em><br>",
+        "<strong>Vernacular name: </strong>", tolower(vernacularName), "<br>",
+        "<strong>Date: </strong>", ifelse(!is.na(eventDate), as.character(eventDate), "No date available"), "<br>",
         "<strong>Observer: </strong>", ifelse(!is.na(creator), creator, "No observer available"),
         "</div>"
       ),
-      radius = 5, stroke = FALSE, color = ~color_palette(scientificName),
+      radius = 3, stroke = FALSE, color = color,
       fillOpacity = 0.5
     ) %>%
-    setView(lng = 19.1344, lat = 51.9194, zoom = 6)
+    setView(lng = 10, lat = 50, zoom = 4)
 }
 
 render_timeline <- function(timeline_data, color) {
@@ -106,7 +107,7 @@ render_timeline <- function(timeline_data, color) {
   #
   # Args:
   #   timeline_data: A data.table containing the timeline data.
-  #   color: A character string specifying the color for the bars.
+  #   color: The color for the bars.
   #
   # Returns:
   #   A Plotly bar chart object.

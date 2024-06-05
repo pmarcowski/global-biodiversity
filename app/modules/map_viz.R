@@ -7,20 +7,20 @@
 # This module provides the UI and server logic for the map visualization
 # functionality in the biodiversity observations Shiny app.
 
-# UI function for the map module
+# UI function for map module
 mapUI <- function(id) {
   ns <- NS(id)
   leafletOutput(ns("map"), height = 600)
 }
 
-# Server function for the map module
-mapServer <- function(id, map_data, color_palette) {
+# Server function for map module
+mapServer <- function(id, map_data, color) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
     output$map <- renderLeaflet({
       req(map_data())
-      render_map(map_data(), color_palette)
+      render_map(map_data(), color)
     })
   })
 }

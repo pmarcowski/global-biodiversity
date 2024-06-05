@@ -7,20 +7,20 @@
 # This module provides the UI and server logic for the timeline visualization
 # functionality in the biodiversity observations Shiny app.
 
-# UI function for the timeline module
+# UI function for timeline module
 timelineUI <- function(id) {
   ns <- NS(id)
   plotlyOutput(ns("timeline"))
 }
 
-# Server function for the timeline module
-timelineServer <- function(id, timeline_data, first_green) {
+# Server function for timeline module
+timelineServer <- function(id, timeline_data, color) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
     output$timeline <- renderPlotly({
       req(timeline_data())
-      render_timeline(timeline_data(), first_green)
+      render_timeline(timeline_data(), color)
     })
   })
 }

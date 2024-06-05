@@ -12,34 +12,51 @@
 # Load packages
 library(vroom)
 library(data.table)
+library(lubridate)
+
+# Define observations countries
+selected_countries <- c(
+  "Poland"
+)
+
+# Define observations years
+selected_years <- 1979:2020
 
 # Read occurrence data
 occurence_data <- vroom("./data/occurence.csv", col_select = c(
   "id", "continent", "country",
-  "scientificName", "vernacularName", 
+  "scientificName", "vernacularName",
   "eventDate", "longitudeDecimal", "latitudeDecimal"
 ))
 
 # Convert to data.table and prepare
 occurence_data <- as.data.table(occurence_data)
-occurence_data <- occurence_data[country == "Poland"]
+occurence_data <- occurence_data[country %in% selected_countries]
+occurence_data <- occurence_data[year(eventDate) %in% selected_years]
 
 # Read media data
-media_data <- vroom("./data/multimedia.csv", col_select = c("CoreId", "accessURI", "creator"))
+media_data <- vroom("./data/multimedia.csv", col_select = c(
+  "CoreId", "accessURI", "creator"
+))
 
 # Convert to data.table and prepare
 media_data <- as.data.table(media_data)
 setnames(media_data, "CoreId", "id")
 
-# Perform a left join to add accessURI and creator to occurrence data
+# Perform left join to add accessURI and creator to occurrence data
 occurence_data <- merge(occurence_data, media_data, by = "id", all.x = TRUE)
 
-# Create a lookup table from occurence_data for scientificName to accessURI and creator
-lookup <- occurence_data[!is.na(accessURI), .(accessURI = first(accessURI), creator = first(creator)), by = scientificName]
+# Create lookup table from occurence_data for scientificName to accessURI and creator
+lookup <- occurence_data[!is.na(accessURI),
+  .(accessURI = first(accessURI), creator = first(creator)),
+  by = scientificName
+]
 
-# Fill NAs in accessURI and creator in occurrence data using the lookup table
-occurence_data[is.na(accessURI), `:=`(accessURI = lookup[.SD, on = .(scientificName), accessURI], 
-                                      creator = lookup[.SD, on = .(scientificName), creator])]
+# Fill NAs in accessURI and creator in occurrence data using lookup table
+occurence_data[is.na(accessURI), `:=`(
+  accessURI = lookup[.SD, on = .(scientificName), accessURI],
+  creator = lookup[.SD, on = .(scientificName), creator]
+)]
 
 # Save prepared occurrence data to app directory
 saveRDS(occurence_data, "./app/data/occurence_prepared.Rds")
