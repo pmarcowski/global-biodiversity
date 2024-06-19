@@ -8,7 +8,7 @@
 # functionality in the biodiversity observations Shiny app.
 
 # UI function for species search module
-speciesSearchUI <- function(id) {
+species_search_ui <- function(id) {
   ns <- NS(id)
   tagList(
     textInput(ns("query_species"), strong("Search species"), ""),
@@ -19,7 +19,7 @@ speciesSearchUI <- function(id) {
 }
 
 # Server function for species search module
-speciesSearchServer <- function(id, occurence) {
+species_search_server <- function(id, occurence) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     selected_species <- reactiveVal(NULL)

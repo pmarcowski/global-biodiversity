@@ -8,13 +8,13 @@
 # functionality in the biodiversity observations Shiny app.
 
 # UI function for timeline module
-timelineUI <- function(id) {
+timeline_ui <- function(id) {
   ns <- NS(id)
   plotlyOutput(ns("timeline"))
 }
 
 # Server function for timeline module
-timelineServer <- function(id, timeline_data, color) {
+timeline_server <- function(id, timeline_data, color) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 

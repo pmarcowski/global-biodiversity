@@ -8,13 +8,13 @@
 # functionality in the biodiversity observations Shiny app.
 
 # UI function for map module
-mapUI <- function(id) {
+map_ui <- function(id) {
   ns <- NS(id)
   leafletOutput(ns("map"), height = 600)
 }
 
 # Server function for map module
-mapServer <- function(id, map_data, color) {
+map_server <- function(id, map_data, color) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 

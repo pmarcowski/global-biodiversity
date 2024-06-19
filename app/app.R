@@ -56,9 +56,9 @@ ui <- page_sidebar(
     base_font = "Segoe UI",
     heading_font = "Segoe UI"
   ),
-  sidebar = sidebar(width = 300, speciesSearchUI("species_search")),
-  card(card_title(strong("Observation map")), mapUI("map")),
-  card(card_title(strong("Observation timeline")), timelineUI("timeline"))
+  sidebar = sidebar(width = 300, species_search_ui("species_search")),
+  card(card_title(strong("Observation map")), map_ui("map")),
+  card(card_title(strong("Observation timeline")), timeline_ui("timeline"))
 )
 
 # Server ---------------------------------------------------------------
@@ -99,8 +99,7 @@ server <- function(input, output, session) {
             and select a species to view its occurrences."),
           strong("Dataset information"),
           p("The dataset used in this app contains occurrence records of
-            various species and comes from the Global Biodiversity Information
-            Facility."),
+            various species and comes from the GBIF."),
           tags$a(
             href = "https://www.gbif.org/occurrence/search?dataset_key=8a863029-f435-446a-821e-275f4f641165",
             class = "dataset-link",
@@ -121,7 +120,7 @@ server <- function(input, output, session) {
   })
 
   # Call species search module
-  selected_species <- speciesSearchServer("species_search", occurence)
+  selected_species <- species_search_server("species_search", occurence)
 
   # Create reactive expression for map data
   map_data <- reactive({
@@ -142,10 +141,10 @@ server <- function(input, output, session) {
   })
 
   # Call map module
-  mapServer("map", map_data, primary_color)
+  map_server("map", map_data, primary_color)
 
   # Call timeline module
-  timelineServer("timeline", timeline_data, primary_color)
+  timeline_server("timeline", timeline_data, primary_color)
 }
 
 # Run app
