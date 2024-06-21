@@ -14,6 +14,7 @@ library(vroom)
 library(data.table)
 library(lubridate)
 library(countrycode)
+library(fst)
 
 # Define countries to include
 selected_countries <- c(
@@ -22,7 +23,7 @@ selected_countries <- c(
 )
 
 # Define years to include
-selected_years <- 2010:2020
+selected_years <- c(2010, 2020)
 
 # Read occurrence data
 occurence_data <- vroom("./data/occurence.csv", col_select = c(
@@ -33,11 +34,12 @@ occurence_data <- vroom("./data/occurence.csv", col_select = c(
 
 # Convert to data.table and prepare
 occurence_data <- as.data.table(occurence_data)
-occurence_data <- occurence_data[country %in% selected_countries]
-occurence_data <- occurence_data[year(eventDate) %in% selected_years]
+occurence_data <- occurence_data[country %chin% selected_countries]
+occurence_data <- occurence_data[year(eventDate) %between% selected_years]
+occurence_data <- occurence_data[!is.na(vernacularName)]
 
 # Downsample observations by country
-occurence_data <- occurence_data[, .SD[sample(.N, max(1, .N * 0.05))], by = country]
+occurence_data <- occurence_data[, .SD[sample(.N, max(1, .N * 0.2))], by = country]
 
 # Read media data
 media_data <- vroom("./data/multimedia.csv", col_select = c(
@@ -63,5 +65,9 @@ occurence_data[is.na(accessURI), `:=`(
   creator = lookup[.SD, on = .(scientificName), creator]
 )]
 
+# Inspect data for NAs
+na_rows <- occurence_data[is.na(accessURI) | is.na(creator)]
+print(na_rows)
+
 # Save prepared occurrence data to app directory
-saveRDS(occurence_data, "./app/data/occurence_prepared.Rds")
+write_fst(occurence_data, "./app/data/occurence_prepared.fst")

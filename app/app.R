@@ -14,11 +14,13 @@
 # Load packages
 library(shiny)
 library(bslib)
+library(waiter)
 library(data.table)
 library(leaflet)
 library(leaflet.extras)
 library(plotly)
 library(lubridate)
+library(fst)
 
 # Load utility functions
 source("utils/functions.R")
@@ -29,7 +31,7 @@ source("modules/map_viz.R")
 source("modules/timeline_viz.R")
 
 # Load prepared data
-occurence <- readRDS("data/occurence_prepared.Rds")
+occurence <- read_fst("data/occurence_prepared.fst")
 setDT(occurence)
 
 # Indexing for faster access
@@ -48,24 +50,40 @@ primary_color <- "#27ae60"
 # Define initial map view
 initial_view <- list(lng = 10, lat = 50, zoom = 4)
 
+# Define loading screen appearance
+waiter_set_theme(html = spin_loaders(id = 11, color = primary_color), color = "white")
+
 # UI -------------------------------------------------------------------
 
 ui <- page_fillable(
+  # Add loading screen
+  autoWaiter(),
+  
+  # Use custom CSS
   tags$head(
-    tags$link(rel = "stylesheet", type = "text/css", href = "style.css")
+    tags$link(rel = "stylesheet", type = "text/css", href = "styles.css")
   ),
+  
+  # Set page title
   title = "Biodiversity observations",
+  
+  # Set theme options
   theme = bs_theme(
     primary = primary_color,
     base_font = "Segoe UI",
     heading_font = "Segoe UI"
   ),
+  
+  # Call map module
   map_ui("map"),
+  
+  # Add search panel in top left corner
   absolutePanel(
     card(
       card_title(
         span(
           strong("Biodiversity observations"),
+          # Add info button
           actionLink(
             "info_modal",
             label = icon("info-circle"),
@@ -73,10 +91,13 @@ ui <- page_fillable(
           )
         )
       ),
+      # Add species search UI component
       species_search_ui("species_search")
     ),
     top = "4vh", left = "4vw", height = "auto", fixed = TRUE
   ),
+  
+  # Add timeline panel at bottom
   absolutePanel(
     card(card_title(strong("Observation timeline")), timeline_ui("timeline"), max_height = "30vh"),
     bottom = "4vh", left = "25vw", width = "50vw", fixed = TRUE
