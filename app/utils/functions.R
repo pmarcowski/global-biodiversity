@@ -73,7 +73,7 @@ count_by_year <- function(dt) {
   dt[, .N, by = .(year = year(eventDate))]
 }
 
-render_map <- function(map_data, color) {
+render_map <- function(map_data, color, initial_view) {
   # Creates a leaflet map to visualize species occurrences.
   #
   # Args:
@@ -83,7 +83,10 @@ render_map <- function(map_data, color) {
   # Returns:
   #   A leaflet map object.
   leaflet() %>%
-    addProviderTiles(providers$CartoDB.Positron) %>%
+    addProviderTiles(
+      providers$CartoDB.Positron,
+      options = providerTileOptions(minZoom = 4)
+    ) %>%
     addCircleMarkers(
       data = map_data,
       lng = ~longitudeDecimal, lat = ~latitudeDecimal,
@@ -96,10 +99,11 @@ render_map <- function(map_data, color) {
         "<strong>Observer: </strong>", ifelse(!is.na(creator), creator, "No observer available"),
         "</div>"
       ),
-      radius = 3, stroke = FALSE, color = color,
-      fillOpacity = 0.5
+      radius = 10, stroke = FALSE, color = color,
+      fillOpacity = 0.7,
+      clusterOptions = markerClusterOptions()
     ) %>%
-    setView(lng = 10, lat = 50, zoom = 4)
+    setView(lng = initial_view$lng, lat = initial_view$lat, zoom = initial_view$zoom)
 }
 
 render_timeline <- function(timeline_data, color) {
@@ -111,17 +115,16 @@ render_timeline <- function(timeline_data, color) {
   #
   # Returns:
   #   A Plotly bar chart object.
-  plot_ly(
-    data = timeline_data,
-    x = ~year,
-    y = ~N,
-    type = "bar",
-    text = ~N,
-    textposition = "outside",
-    marker = list(color = color),
-    hoverinfo = "none",
-    opacity = 0.7
-  ) %>%
+  plot_ly(data = timeline_data) %>%
+    add_bars(
+      x = ~year,
+      y = ~N,
+      text = ~N,
+      textposition = "outside",
+      marker = list(color = color),
+      hoverinfo = "none",
+      opacity = 0.7
+    ) %>%
     layout(
       xaxis = list(title = "Year", dtick = 1),
       yaxis = list(title = "Count"),

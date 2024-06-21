@@ -16,6 +16,7 @@ library(shiny)
 library(bslib)
 library(data.table)
 library(leaflet)
+library(leaflet.extras)
 library(plotly)
 library(lubridate)
 
@@ -31,34 +32,55 @@ source("modules/timeline_viz.R")
 occurence <- readRDS("data/occurence_prepared.Rds")
 setDT(occurence)
 
-# Set primary color
+# Indexing for faster access
+setkey(occurence, id)
+setindex(occurence, scientificName)
+setindex(occurence, vernacularName)
+setindex(occurence, eventDate)
+setindex(occurence, longitudeDecimal)
+setindex(occurence, latitudeDecimal)
+setindex(occurence, country)
+setindex(occurence, accessURI)
+
+# Define primary color
 primary_color <- "#27ae60"
+
+# Define initial map view
+initial_view <- list(lng = 10, lat = 50, zoom = 4)
 
 # UI -------------------------------------------------------------------
 
-ui <- page_sidebar(
+ui <- page_fillable(
   tags$head(
     tags$link(rel = "stylesheet", type = "text/css", href = "style.css")
   ),
-  title = tagList(
-    tags$div(
-      "Biodiversity observations (1979-2020)",
-      class = "title-header"
-    ),
-    actionLink("info_modal",
-      label = icon("info-circle"),
-      class = "info-button"
-    )
-  ),
-  window_title = "Biodiversity observations",
+  title = "Biodiversity observations",
   theme = bs_theme(
     primary = primary_color,
     base_font = "Segoe UI",
     heading_font = "Segoe UI"
   ),
-  sidebar = sidebar(width = 300, species_search_ui("species_search")),
-  card(card_title(strong("Observation map")), map_ui("map")),
-  card(card_title(strong("Observation timeline")), timeline_ui("timeline"))
+  map_ui("map"),
+  absolutePanel(
+    card(
+      card_title(
+        span(
+          strong("Biodiversity observations"),
+          actionLink(
+            "info_modal",
+            label = icon("info-circle"),
+            class = "info-button"
+          )
+        )
+      ),
+      species_search_ui("species_search")
+    ),
+    top = "4vh", left = "4vw", height = "auto", fixed = TRUE
+  ),
+  absolutePanel(
+    card(card_title(strong("Observation timeline")), timeline_ui("timeline"), max_height = "30vh"),
+    bottom = "4vh", left = "25vw", width = "50vw", fixed = TRUE
+  )
 )
 
 # Server ---------------------------------------------------------------
@@ -76,8 +98,7 @@ server <- function(input, output, session) {
               type = "button",
               class = "close",
               `data-dismiss` = "modal",
-              onclick =
-                "Shiny.setInputValue('close_modal', true, {priority: 'event'});",
+              onclick = "Shiny.setInputValue('close_modal', true, {priority: 'event'});",
               icon("times"), " Close"
             )
           )
@@ -91,8 +112,7 @@ server <- function(input, output, session) {
           strong("About the project"),
           p("This Shiny app visualizes biodiversity observations from the
             Global Biodiversity Information Facility (GBIF). It allows you to
-            explore species occurrences on a map and view the observation
-            timeline."),
+            explore species occurrences on a map and view the observation timeline."),
           strong("Usage"),
           p("To get started, the app shows all observations globally.
             You can search for specific species using the search functionality
@@ -141,7 +161,7 @@ server <- function(input, output, session) {
   })
 
   # Call map module
-  map_server("map", map_data, primary_color)
+  map_server("map", map_data, primary_color, initial_view)
 
   # Call timeline module
   timeline_server("timeline", timeline_data, primary_color)

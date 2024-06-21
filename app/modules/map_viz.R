@@ -10,17 +10,17 @@
 # UI function for map module
 map_ui <- function(id) {
   ns <- NS(id)
-  leafletOutput(ns("map"), height = 600)
+  leafletOutput(ns("map"))
 }
 
 # Server function for map module
-map_server <- function(id, map_data, color) {
+map_server <- function(id, map_data, color, initial_view) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
     output$map <- renderLeaflet({
       req(map_data())
-      render_map(map_data(), color)
+      render_map(map_data(), color, initial_view)
     })
   })
 }

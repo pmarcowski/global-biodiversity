@@ -13,14 +13,16 @@
 library(vroom)
 library(data.table)
 library(lubridate)
+library(countrycode)
 
-# Define observations countries
+# Define countries to include
 selected_countries <- c(
-  "Poland"
+  "Poland", "Germany", "France", "United Kingdom", "Italy",
+  "Spain", "Netherlands", "Belgium", "Sweden", "Switzerland", "Austria"
 )
 
-# Define observations years
-selected_years <- 1979:2020
+# Define years to include
+selected_years <- 2010:2020
 
 # Read occurrence data
 occurence_data <- vroom("./data/occurence.csv", col_select = c(
@@ -33,6 +35,9 @@ occurence_data <- vroom("./data/occurence.csv", col_select = c(
 occurence_data <- as.data.table(occurence_data)
 occurence_data <- occurence_data[country %in% selected_countries]
 occurence_data <- occurence_data[year(eventDate) %in% selected_years]
+
+# Downsample observations by country
+occurence_data <- occurence_data[, .SD[sample(.N, max(1, .N * 0.05))], by = country]
 
 # Read media data
 media_data <- vroom("./data/multimedia.csv", col_select = c(
