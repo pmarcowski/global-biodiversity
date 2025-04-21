@@ -14,75 +14,73 @@
 # Load packages
 library(shiny)
 library(bslib)
-library(waiter)
 library(data.table)
 library(leaflet)
 library(leaflet.extras)
 library(plotly)
 library(lubridate)
-library(fst)
-
-# Load utility functions
-source("utils/functions.R")
+library(duckdb)
+library(DBI)
 
 # Load modules
 source("modules/species_search.R")
 source("modules/map_viz.R")
 source("modules/timeline_viz.R")
 
-# Load prepared data
-occurence <- read_fst("data/occurence_prepared.fst")
-setDT(occurence)
+# Load utility functions
+source("utils/functions.R")
 
-# Indexing for faster access
-setkey(occurence, id)
-setindex(occurence, scientificName)
-setindex(occurence, vernacularName)
-setindex(occurence, eventDate)
-setindex(occurence, longitudeDecimal)
-setindex(occurence, latitudeDecimal)
-setindex(occurence, country)
-setindex(occurence, accessURI)
+# Database connection
+db_path <- "data/biodiversity.duckdb"
 
-# Define primary color
+# Establish connection to DuckDB
+if (!file.exists(db_path)) {
+  stop("Database file not found. Please run prepare_data.R first.")
+}
+
+# Read-only for the app
+db_con <- dbConnect(duckdb(), dbdir = db_path, read_only = TRUE)
+
+# Close the database connection when the app stops
+shiny::onStop(function() {
+  dbDisconnect(db_con, shutdown = TRUE)
+  print("Database connection closed.")
+})
+
+# Define color palette
 primary_color <- "#27ae60"
+secondary_color <- "#3498db"
 
 # Define initial map view
 initial_view <- list(lng = 10, lat = 50, zoom = 4)
 
-# Define loading screen appearance
-waiter_set_theme(html = spin_loaders(id = 11, color = primary_color), color = "white")
-
-# UI -------------------------------------------------------------------
-
+# Define UI logic
 ui <- page_fillable(
-  # Add loading screen
-  autoWaiter(),
-  
+
   # Use custom CSS
   tags$head(
     tags$link(rel = "stylesheet", type = "text/css", href = "styles.css")
   ),
-  
+
   # Set page title
-  title = "Biodiversity observations",
-  
+  title = "Global Biodiversity",
+
   # Set theme options
   theme = bs_theme(
     primary = primary_color,
     base_font = "Segoe UI",
     heading_font = "Segoe UI"
   ),
-  
+
   # Call map module
   map_ui("map"),
-  
+
   # Add search panel in top left corner
   absolutePanel(
     card(
       card_title(
         span(
-          strong("Biodiversity observations"),
+          strong("Global Biodiversity"),
           # Add info button
           actionLink(
             "info_modal",
@@ -94,18 +92,17 @@ ui <- page_fillable(
       # Add species search UI component
       species_search_ui("species_search")
     ),
-    top = "4vh", left = "4vw", height = "auto", fixed = TRUE
+    top = "3vh", left = "3vw", height = "auto", fixed = TRUE
   ),
-  
+
   # Add timeline panel at bottom
   absolutePanel(
-    card(card_title(strong("Observation timeline")), timeline_ui("timeline"), max_height = "30vh"),
+    card(card_title(strong("Observation Timeline")), timeline_ui("timeline"), max_height = "30vh"),
     bottom = "4vh", left = "25vw", width = "50vw", fixed = TRUE
   )
 )
 
-# Server ---------------------------------------------------------------
-
+# Define server logic
 server <- function(input, output, session) {
   # Modal for info
   observeEvent(input$info_modal, {
@@ -114,7 +111,7 @@ server <- function(input, output, session) {
         titlePanel(
           tags$div(
             class = "modal-header",
-            tags$strong(class = "modal-title", "Biodiversity observations"),
+            tags$strong(class = "modal-title", "Global Biodiversity"),
             tags$button(
               type = "button",
               class = "close",
@@ -160,29 +157,62 @@ server <- function(input, output, session) {
     removeModal()
   })
 
-  # Call species search module
-  selected_species <- species_search_server("species_search", occurence)
+  # Call species search module, passing the database connection
+  selected_species <- species_search_server("species_search", db_con)
 
-  # Create reactive expression for map data
+  # Create reactive expression for map data by querying the database
   map_data <- reactive({
-    if (is.null(selected_species())) {
-      occurence
+    species <- selected_species()
+
+    # Base columns needed for the map
+    select_cols <- c("scientificName", "vernacularName", "eventDate",
+                     "longitudeDecimal", "latitudeDecimal", "accessURI", "creator")
+
+    if (is.null(species)) {
+      # No species selected: Show a limited sample (e.g., 50k records)
+      # Adjust LIMIT as needed for performance vs. initial view
+      query <- paste("SELECT", paste(select_cols, collapse = ", "),
+                     "FROM occurrences LIMIT 50000")
+      dbGetQuery(db_con, query)
     } else {
-      filter_species(occurence, selected_species())
+      # Species selected: Filter by scientificName
+      query <- DBI::sqlInterpolate(
+        db_con,
+        paste("SELECT", paste(select_cols, collapse = ", "),
+              "FROM occurrences WHERE scientificName = ?"),
+        species
+      )
+      dbGetQuery(db_con, query)
     }
   })
 
-  # Create reactive expression for timeline data
+  # Create reactive expression for timeline data by querying the database
   timeline_data <- reactive({
-    if (is.null(selected_species())) {
-      count_by_year(occurence)
+    species <- selected_species()
+
+    if (is.null(species)) {
+      # No species selected: Aggregate all data
+      query <- "SELECT strftime(eventDate, '%Y') as year, COUNT(*) as N
+                FROM occurrences
+                WHERE year IS NOT NULL
+                GROUP BY year ORDER BY year"
+      dbGetQuery(db_con, query)
     } else {
-      count_by_year(filter_species(occurence, selected_species()))
+      # Species selected: Filter and aggregate
+      query <- DBI::sqlInterpolate(
+        db_con,
+        "SELECT strftime(eventDate, '%Y') as year, COUNT(*) as N
+         FROM occurrences
+         WHERE scientificName = ? AND year IS NOT NULL
+         GROUP BY year ORDER BY year",
+        species
+      )
+      dbGetQuery(db_con, query)
     }
   })
 
   # Call map module
-  map_server("map", map_data, primary_color, initial_view)
+  map_server("map", map_data, secondary_color, initial_view)
 
   # Call timeline module
   timeline_server("timeline", timeline_data, primary_color)

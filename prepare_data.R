@@ -14,16 +14,12 @@ library(vroom)
 library(data.table)
 library(lubridate)
 library(countrycode)
-library(fst)
+library(duckdb)
+library(DBI)
+library(stringr)
 
-# Define countries to include
-selected_countries <- c(
-  "Poland", "Germany", "France", "United Kingdom", "Italy",
-  "Spain", "Netherlands", "Belgium", "Sweden", "Switzerland", "Austria"
-)
-
-# Define years to include
-selected_years <- c(2010, 2020)
+# Define database path
+db_path <- "./app/data/biodiversity.duckdb"
 
 # Read occurrence data
 occurence_data <- vroom("./data/occurence.csv", col_select = c(
@@ -34,12 +30,7 @@ occurence_data <- vroom("./data/occurence.csv", col_select = c(
 
 # Convert to data.table and prepare
 occurence_data <- as.data.table(occurence_data)
-occurence_data <- occurence_data[country %chin% selected_countries]
-occurence_data <- occurence_data[year(eventDate) %between% selected_years]
 occurence_data <- occurence_data[!is.na(vernacularName)]
-
-# Downsample observations by country
-occurence_data <- occurence_data[, .SD[sample(.N, max(1, .N * 0.2))], by = country]
 
 # Read media data
 media_data <- vroom("./data/multimedia.csv", col_select = c(
@@ -69,5 +60,26 @@ occurence_data[is.na(accessURI), `:=`(
 na_rows <- occurence_data[is.na(accessURI) | is.na(creator)]
 print(na_rows)
 
-# Save prepared occurrence data to app directory
-write_fst(occurence_data, "./app/data/occurence_prepared.fst")
+# Format vernaculaName as title case
+occurence_data[, vernacularName := str_to_title(vernacularName)]
+
+# Remove existing DB file if it exists to ensure fresh import
+if (file.exists(db_path)) {
+  file.remove(db_path)
+}
+
+# Connect to DuckDB database
+con <- dbConnect(duckdb(), dbdir = db_path, read_only = FALSE)
+
+# Write the data.table to DuckDB
+dbWriteTable(con, "occurrences", occurence_data, overwrite = TRUE)
+
+# Create indexes for faster querying
+dbExecute(con, "CREATE INDEX idx_scientificName ON occurrences (scientificName)")
+dbExecute(con, "CREATE INDEX idx_vernacularName ON occurrences (vernacularName)")
+dbExecute(con, "CREATE INDEX idx_eventDate ON occurrences (eventDate)")
+
+# Disconnect from the database
+dbDisconnect(con, shutdown = TRUE)
+
+print(paste("Data successfully written to DuckDB database:", db_path))

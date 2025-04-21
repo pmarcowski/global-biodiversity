@@ -12,11 +12,11 @@ species_search_ui <- function(id) {
   ns <- NS(id)
   tagList(
     # Search input field
-    textInput(ns("query_species"), strong("Search species"), "", width = "auto"),
+    textInput(ns("query_species"), strong("Search Species"), "", width = "auto"),
     # Search button
     input_task_button(ns("search_btn"), strong("Search")),
     # Reset button
-    actionButton(ns("reset_btn"), strong("Reset selection")),
+    actionButton(ns("reset_btn"), strong("Reset Selection")),
     # Label for species selection (dynamically rendered)
     uiOutput(ns("species_label")),
     # Scrollable div for species list
@@ -28,18 +28,22 @@ species_search_ui <- function(id) {
 }
 
 # Server function for species search module
-species_search_server <- function(id, occurence) {
+species_search_server <- function(id, db_con) { # Changed occurence to db_con
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     # Reactive value to store selected species
     selected_species <- reactiveVal(NULL)
-    
+
     # Observe search button click
     observeEvent(input$search_btn, {
       search_query <- input$query_species
       if (search_query != "") {
-        # Filter species based on search query
-        filtered_species <- search_species(search_query, occurence)
+        # Search species in the database
+        filtered_species_df <- search_species(search_query, db_con) # Use db_con
+
+        # Convert result to data.table for subsequent operations
+        filtered_species <- setDT(filtered_species_df)
+
         if (nrow(filtered_species) == 0) {
           # Display message if no species found
           output$species_label <- renderUI({ NULL })
@@ -47,8 +51,8 @@ species_search_server <- function(id, occurence) {
         } else {
           # Prepare and display list of found species
           species_choices <- unique(filtered_species[, .(scientificName, vernacularName)])
-          species_choices[, choice_name := paste0(tolower(vernacularName), "<br><em>", scientificName, "</em>")]
-          output$species_label <- renderUI({ strong("Select species") })
+          species_choices[, choice_name := paste0(vernacularName, "<br><em>", scientificName, "</em>")]
+          output$species_label <- renderUI({ strong("Select Species") })
           output$species_ui <- renderUI({
             radioButtons(ns("select_species"), NULL,
                          choiceNames = lapply(species_choices$choice_name, HTML),
@@ -63,12 +67,12 @@ species_search_server <- function(id, occurence) {
         output$species_ui <- renderUI({ NULL })
       }
     })
-    
+
     # Update selected species when user makes selection
     observeEvent(input$select_species, {
       selected_species(input$select_species)
     })
-    
+
     # Reset selection and clear search
     observeEvent(input$reset_btn, {
       selected_species(NULL)
@@ -76,7 +80,7 @@ species_search_server <- function(id, occurence) {
       output$species_label <- renderUI({ NULL })
       output$species_ui <- renderUI({ NULL })
     })
-    
+
     # Return reactive value containing selected species
     selected_species
   })
