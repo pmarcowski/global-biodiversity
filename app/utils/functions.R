@@ -1,11 +1,4 @@
-# Title: Utility functions for the biodiversity observations Shiny app
-# Author: Przemyslaw Marcowski, PhD
-# Email: p.marcowski@gmail.com
-# Date: 2024-05-28
-# Copyright (c) 2024 Przemyslaw Marcowski
-
-# This script contains utility functions used in the biodiversity
-# observations Shiny app.
+# Utility functions for the biodiversity observations Shiny app
 
 preprocess_query <- function(query) {
   # Preprocesses species name query by removing diacritics, converting to
@@ -22,6 +15,47 @@ preprocess_query <- function(query) {
   query <- tolower(query)
   query <- gsub("[^[:alnum:]]", "", query)
   query
+}
+
+call_openrouter_api <- function(prompt, model_id = NULL, max_output_tokens = NULL) {
+  # Get API key from environment variable
+  api_key <- Sys.getenv("OPENROUTER_API_KEY")
+
+  # Return early if API key is not set
+  if (api_key == "") {
+    return(list(error = "OpenRouter API key not configured. Please set the OPENROUTER_API_KEY environment variable."))
+  }
+
+  # Use environment variables for parameters
+  if (is.null(model_id)) {
+    model_id <- Sys.getenv("OPENROUTER_MODEL")
+  }
+
+  if (is.null(max_output_tokens)) {
+    max_output_tokens <- as.numeric(Sys.getenv("OPENROUTER_TOKEN_LIMIT"))
+  }
+
+  # Make API request
+  tryCatch({
+    response <- request('https://openrouter.ai/api/v1/chat/completions') %>%
+      req_headers(
+        'Authorization' = paste('Bearer', api_key),
+        'Content-Type' = 'application/json'
+      ) %>%
+      req_body_json(list(
+        model = model_id,
+        messages = list(list(role = 'user', content = prompt)),
+        max_tokens = max_output_tokens
+      )) %>%
+      req_perform()
+
+    # Parse and return content
+    data <- resp_body_json(response)
+    list(content = data$choices[[1]]$message$content)
+  },
+  error = function(e) {
+    list(error = paste('API call failed:', e$message))
+  })
 }
 
 search_species <- function(search_query, db_con) {
@@ -108,16 +142,18 @@ leaflet(options = leafletOptions(
     setView(lng = initial_view$lng, lat = initial_view$lat, zoom = initial_view$zoom)
 }
 
-render_timeline <- function(timeline_data, color) {
+render_timeline <- function(timeline_data, color, secondary_color = NULL) {
   # Creates a Plotly bar chart to visualize the timeline of species occurrences.
   #
   # Args:
   #   timeline_data: A data.table containing the timeline data.
   #   color: The color for the bars.
+  #   secondary_color: The color for the trend line. If NULL, no trend line is shown.
   #
   # Returns:
   #   A Plotly bar chart object.
-  plot_ly(data = timeline_data) %>%
+  # Create initial plot with bars
+  p <- plot_ly(data = timeline_data) %>%
     add_bars(
       x = ~year,
       y = ~N,
@@ -126,14 +162,48 @@ render_timeline <- function(timeline_data, color) {
       marker = list(color = color),
       hoverinfo = "none",
       opacity = 0.8
-    ) %>%
-    layout(
+    )
+
+  # Add trend line if we have enough data points
+  if (nrow(timeline_data) >= 5) {
+    # Create a linear model for the trend line
+    model <- lm(N ~ as.numeric(year), data = timeline_data)
+    # Create predicted values
+    predicted <- predict(model, timeline_data)
+    predicted[predicted < 0] <- 0
+
+    # Add the trend line
+    p <- p %>% add_lines(
+      x = ~year,
+      y = ~predicted,
+      line = list(color = secondary_color, width = 2),
+      hoverinfo = "none"
+    )
+  }
+
+  # Complete plot with layout and config
+  p %>% layout(
       xaxis = list(title = "Year"),
       yaxis = list(title = "Count"),
       showlegend = FALSE,
       dragmode = FALSE,
       plot_bgcolor = "transparent",
-      paper_bgcolor = "transparent"
+      paper_bgcolor = "transparent",
+      modebar = list(bgcolor = "transparent", color = "#666666", activecolor = color)
     ) %>%
-    config(displayModeBar = FALSE)
+    config(
+      # Enable display mode bar with only specific buttons
+      displayModeBar = TRUE,
+      # Only show the download button
+      modeBarButtons = list(list("toImage")),
+      # Custom appearance
+      displaylogo = FALSE,
+      # Customize the download options
+      toImageButtonOptions = list(
+        format = 'png',
+        filename = 'biodiversity_timeline',
+        height = 500,
+        width = 700
+      )
+    )
 }

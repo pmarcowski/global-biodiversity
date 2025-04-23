@@ -1,12 +1,3 @@
-# Title: Processing of biodiversity data
-# Author: Przemyslaw Marcowski, PhD
-# Email: p.marcowski@gmail.com
-# Date: 2024-02-14
-# Copyright (c) 2024 Przemyslaw Marcowski
-
-# This code is licensed under the MIT license found in the
-# LICENSE file in the root directory of this source tree.
-
 # This script performs data preparation of the biodiversity dataset.
 
 # Load packages
@@ -62,6 +53,9 @@ print(na_rows)
 
 # Format vernaculaName as title case
 occurence_data[, vernacularName := str_to_title(vernacularName)]
+
+# Downsample data
+occurence_data <- occurence_data[sample(.N, 50000)]
 
 # Remove existing DB file if it exists to ensure fresh import
 if (file.exists(db_path)) {

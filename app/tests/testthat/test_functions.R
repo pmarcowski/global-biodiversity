@@ -1,12 +1,5 @@
-# Title: Unit tests for the biodiversity observations Shiny app
-# Author: Przemyslaw Marcowski, PhD
-# Email: p.marcowski@gmail.com
-# Date: 2024-05-28
-# Copyright (c) 2024 Przemyslaw Marcowski
+# Unit tests for the biodiversity observations Shiny app
 
-# This script contains unit tests for the utility functions and modules
-# used in the biodiversity observations Shiny app.
-#
 # The tests cover the following:
 #
 #   1. search_species function:

@@ -18,7 +18,7 @@
 .card {
   border-radius: 0 !important;
   transition: opacity 0.3s;
-  opacity: 0.5;
+  opacity: 0.7;
 }
 
 .card:hover,
@@ -113,7 +113,7 @@
   height: 100vh;
 }
 
-.leaflet-popup-content-wrapper, 
+.leaflet-popup-content-wrapper,
 .leaflet-popup-tip {
   border-radius: 0 !important;
 }
@@ -133,4 +133,12 @@
   text-decoration: none;
   color: #000;
   margin-top: 10px;
+}
+
+/* Plot Styles */
+
+.modebar-container {
+  top: 0px;
+  left: 0px;
+  position: fixed;
 }
