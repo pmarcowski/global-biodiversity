@@ -1,4 +1,4 @@
-![Screenshot](screenshot.png)
+![Screenshot](preview.png)
 
 # Biodiversity observations: Shiny app for species mapping and timeline analysis
 This Shiny application visualizes biodiversity observations from the Global Biodiversity Information Facility (GBIF). Users can explore species occurrences on an interactive map and view the timeline of observations over the years. The app provides features such as species search by vernacular and scientific names, detailed observation popups, and a timeline of species sightings. The app includes an AI-powered summary feature that generates informative overviews and fun facts about displayed species data.
@@ -6,14 +6,11 @@ This Shiny application visualizes biodiversity observations from the Global Biod
 Try the live demo of the application here: [Live Demo](https://pmarcowski.shinyapps.io/global-biodiversity/).
 
 ## Features
-- **Interactive map**: Visualize species observations across Poland with detailed popups including images and observation dates.
+- **Interactive map**: Visualize species observations across the world with detailed popups including images and observation dates.
+- **Default view**: Display all species observations for the initial view.
 - **Species search**: Search for species by vernacular or scientific names and filter the observations on the map accordingly.
 - **Observation timeline**: View a bar chart showing the frequency of species observations over time.
 - **AI Summary**: Generate informative overviews and fun facts about currently displayed species or global biodiversity data.
-- **Default view**: Display all species observations for a meaningful initial view.
-- **Modular design**: Built with Shiny modules for improved code maintainability and reusability.
-- **Custom styling**: Enhanced UI with custom CSS for a better user experience.
-- **Performance**: Efficient data handling to ensure fast initialization and responsiveness.
 
 ## Usage
 The Shiny application serves as the interface for exploring biodiversity data, allowing users to:

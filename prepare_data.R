@@ -1,27 +1,51 @@
-# This script performs data preparation of the biodiversity dataset.
+# Data preparation for the GBIF biodiversity observations dataset
 
 # Load packages
 library(vroom)
 library(data.table)
 library(lubridate)
-library(countrycode)
-library(duckdb)
-library(DBI)
 library(stringr)
-
-# Define database path
-db_path <- "./app/data/biodiversity.duckdb"
+library(countrycode)
+library(arrow)
 
 # Read occurrence data
-occurence_data <- vroom("./data/occurence.csv", col_select = c(
+occurrence_data <- vroom("./data/occurence.csv", col_select = c(
   "id", "continent", "country",
   "scientificName", "vernacularName",
   "eventDate", "longitudeDecimal", "latitudeDecimal"
 ))
 
 # Convert to data.table and prepare
-occurence_data <- as.data.table(occurence_data)
-occurence_data <- occurence_data[!is.na(vernacularName)]
+occurrence_data <- setDT(occurrence_data)[
+  # Drop rows with missing vernacularName or eventDate
+  !is.na(vernacularName) & !is.na(eventDate)
+][
+  # Clean columns and compute year
+  , `:=`(
+    vernacularName = str_to_title(vernacularName),
+    eventDate = as.Date(eventDate),
+    year = year(eventDate),
+    longitudeDecimal = as.numeric(longitudeDecimal),
+    latitudeDecimal = as.numeric(latitudeDecimal)
+  )
+][
+  # Fill continent from country
+  is.na(continent),
+  continent := countrycode(
+    country,
+    origin = "country.name.en",
+    destination = "continent"
+  )
+][
+  # Map region from country
+  , region := countrycode(
+    country,
+    origin = "country.name.en",
+    destination = "region"
+  )
+]
+
+setkey(occurrence_data, id)
 
 # Read media data
 media_data <- vroom("./data/multimedia.csv", col_select = c(
@@ -29,51 +53,119 @@ media_data <- vroom("./data/multimedia.csv", col_select = c(
 ))
 
 # Convert to data.table and prepare
-media_data <- as.data.table(media_data)
+media_data <- setDT(media_data)
 setnames(media_data, "CoreId", "id")
+setkey(media_data, id)
 
-# Perform left join to add accessURI and creator to occurrence data
-occurence_data <- merge(occurence_data, media_data, by = "id", all.x = TRUE)
+# Perform keyed join to add accessURI and creator to occurrence data
+occurrence_data <- media_data[occurrence_data]
 
-# Create lookup table from occurence_data for scientificName to accessURI and creator
-lookup <- occurence_data[!is.na(accessURI),
-  .(accessURI = first(accessURI), creator = first(creator)),
-  by = scientificName
-]
+# Verify and reorder columns
+final_cols <- c(
+  "id",
+  "continent",
+  "region",
+  "country",
+  "scientificName",
+  "vernacularName",
+  "eventDate",
+  "year",
+  "longitudeDecimal",
+  "latitudeDecimal",
+  "accessURI",
+  "creator"
+)
+
+occurrence_data <- occurrence_data[, ..final_cols]
+
+# Optional: create lookup table for scientificName to accessURI and creator
+# lookup_occurence <- occurrence_data[!is.na(accessURI),
+#                                    .(accessURI = first(accessURI), creator = first(creator)),
+#                                    by = scientificName
+# ]
 
 # Fill NAs in accessURI and creator in occurrence data using lookup table
-occurence_data[is.na(accessURI), `:=`(
-  accessURI = lookup[.SD, on = .(scientificName), accessURI],
-  creator = lookup[.SD, on = .(scientificName), creator]
-)]
+# occurrence_data[is.na(accessURI), `:=`(
+#   accessURI = lookup_occurence[.SD, on = .(scientificName), accessURI],
+#   creator   = lookup_occurence[.SD, on = .(scientificName), creator]
+# )]
 
 # Inspect data for NAs
-na_rows <- occurence_data[is.na(accessURI) | is.na(creator)]
-print(na_rows)
+na_summary <- colSums(is.na(occurrence_data))
+print(na_summary)
 
-# Format vernaculaName as title case
-occurence_data[, vernacularName := str_to_title(vernacularName)]
+# Optional: downsample data
+# set.seed(42)
+# occurrence_data <- occurrence_data[sample(.N, 50000)]
 
-# Downsample data
-occurence_data <- occurence_data[sample(.N, 50000)]
+# Write prepared data Parquet
+parquet_path <- "./data/observations.parquet"
 
-# Remove existing DB file if it exists to ensure fresh import
-if (file.exists(db_path)) {
-  file.remove(db_path)
+if (file.exists(parquet_path)) {
+  file.remove(parquet_path)
 }
 
-# Connect to DuckDB database
-con <- dbConnect(duckdb(), dbdir = db_path, read_only = FALSE)
+write_parquet(
+  occurrence_data,
+  parquet_path,
+  version = "2.6",
+  compression = "snappy"
+)
 
-# Write the data.table to DuckDB
-dbWriteTable(con, "occurrences", occurence_data, overwrite = TRUE)
+print(paste("Prepared data successfully written to Parquet:", parquet_path))
 
-# Create indexes for faster querying
-dbExecute(con, "CREATE INDEX idx_scientificName ON occurrences (scientificName)")
-dbExecute(con, "CREATE INDEX idx_vernacularName ON occurrences (vernacularName)")
-dbExecute(con, "CREATE INDEX idx_eventDate ON occurrences (eventDate)")
+# Extract unique species data for lookup
+species_lookup <- unique(occurrence_data[, .(scientificName, vernacularName)])
 
-# Disconnect from the database
-dbDisconnect(con, shutdown = TRUE)
+# Define species lookup file path
+species_lookup_path <- "./app/data/species_lookup.rds"
 
-print(paste("Data successfully written to DuckDB database:", db_path))
+# Remove existing lookup file if it exists
+if (file.exists(species_lookup_path)) {
+  file.remove(species_lookup_path)
+}
+
+# Write the species lookup data to RDS
+saveRDS(species_lookup, species_lookup_path)
+print(paste("Species lookup data successfully written to:", species_lookup_path))
+
+# Create default map sample
+# Total to sample
+total_sample <- min(50000, nrow(occurrence_data))
+
+# One random row per species
+species_idx <- occurrence_data[, .(idx = .I[sample(.N, min(10, .N))]), by = scientificName]$idx
+
+# Sample remainder
+extra_idx <- setdiff(seq_len(nrow(occurrence_data)), species_idx)
+extra_idx <- sample(extra_idx, max(0, total_sample - length(species_idx)))
+
+# Combine and fetch columns
+default_map <- occurrence_data[c(species_idx, extra_idx), ..final_cols]
+
+# Define default map data file path
+default_map_path <- "./app/data/default_map.rds"
+
+# Remove existing default map data file if it exists
+if (file.exists(default_map_path)) {
+  file.remove(default_map_path)
+}
+
+# Write the default map data to RDS
+saveRDS(default_map, default_map_path)
+print(paste("Default map data successfully written to:", default_map_path))
+
+# Create default timeline data
+default_timeline <- occurrence_data[!is.na(eventDate), .(N = as.integer(.N)), by = year]
+
+# Define default timeline data file path
+default_timeline_path <- "./app/data/default_timeline.rds"
+
+# Remove existing default map data file if it exists
+if (file.exists(default_timeline_path)) {
+  file.remove(default_timeline_path)
+}
+
+# Write the default map data to RDS
+saveRDS(default_timeline, default_timeline_path)
+print(paste("Default timeline data successfully written to:", default_timeline_path))

@@ -1,3 +1,3 @@
 library(testthat)
-test_check("app")
+test_dir("tests/testthat")
 

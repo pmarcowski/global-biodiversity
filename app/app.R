@@ -1,6 +1,4 @@
-# This Shiny application visualizes biodiversity observations from the
-# Global Biodiversity Information Facility (GBIF). It allows users to
-# explore species occurrences on a map and view the observation timeline.
+# Shiny app for visualizing GBIF biodiversity observations
 
 # Load packages
 library(shiny)
@@ -10,8 +8,8 @@ library(leaflet)
 library(leaflet.extras)
 library(plotly)
 library(lubridate)
-library(duckdb)
-library(DBI)
+library(bigrquery)
+library(memoise)
 library(httr2)
 
 # Load modules
@@ -24,23 +22,26 @@ source("utils/functions.R")
 
 # Get environment variables
 readRenviron(".Renviron")
+GCP_PROJECT <- Sys.getenv("GCP_PROJECT")
+GCP_AUTH_JSON <- Sys.getenv("GCP_AUTH_JSON")
+BQ_DATASET <- Sys.getenv("BQ_DATASET")
 
-# Database connection
-db_path <- "data/biodiversity.duckdb"
+# Load species lookup
+species_lookup <- readRDS("data/species_lookup.rds")
 
-# Establish connection to DuckDB
-if (!file.exists(db_path)) {
-  stop("Database file not found. Please run prepare_data.R first.")
-}
+# Load default view data
+default_map <- readRDS("data/default_map.rds")
+default_timeline <- readRDS("data/default_timeline.rds")
 
-# Read-only for the app
-db_con <- dbConnect(duckdb(), dbdir = db_path, read_only = TRUE)
+# Database authentication
+bq_auth(path = GCP_AUTH_JSON)
 
-# Close the database connection when the app stops
-shiny::onStop(function() {
-  dbDisconnect(db_con, shutdown = TRUE)
-  print("Database connection closed.")
-})
+# Fully-qualified BQ table reference
+full_tbl <- sprintf("`%s.%s.observations`", GCP_PROJECT, BQ_DATASET)
+
+# Base columns
+select_cols <- c("scientificName", "vernacularName", "eventDate", "country", "region",
+                 "longitudeDecimal", "latitudeDecimal", "accessURI", "creator")
 
 # Define color palette
 primary_color <- "#27ae60"
@@ -160,58 +161,31 @@ server <- function(input, output, session) {
     removeModal()
   })
 
-  # Call species search module, passing the database connection
-  selected_species <- species_search_server("species_search", db_con)
+  # Call species search module
+  selected_species <- species_search_server("species_search", species_lookup)
+
+  # Cached functions
+  get_map_cache <- memoise(function(species) get_map_data(species, full_tbl, select_cols, GCP_PROJECT))
+  get_timeline_cache <- memoise(function(species) get_timeline_data(species, full_tbl, GCP_PROJECT))
 
   # Create reactive expression for map data by querying the database
   map_data <- reactive({
+    # Get the currently selected species (or NULL)
     species <- selected_species()
-
-    # Base columns needed for the map
-    select_cols <- c("scientificName", "vernacularName", "eventDate", "country",
-                     "longitudeDecimal", "latitudeDecimal", "accessURI", "creator")
-
-    if (is.null(species)) {
-      # No species selected: Show a limited sample (e.g., 50k records)
-      # Adjust LIMIT as needed for performance vs. initial view
-      query <- paste("SELECT", paste(select_cols, collapse = ", "),
-                     "FROM occurrences LIMIT 50000")
-      dbGetQuery(db_con, query)
-    } else {
-      # Species selected: Filter by scientificName
-      query <- DBI::sqlInterpolate(
-        db_con,
-        paste("SELECT", paste(select_cols, collapse = ", "),
-              "FROM occurrences WHERE scientificName = ?"),
-        species
-      )
-      dbGetQuery(db_con, query)
-    }
+    # No species selected: show default map data
+    if (is.null(species)) return(default_map)
+    # Species selected: filter by scientificName
+    get_map_cache(species)
   })
 
   # Create reactive expression for timeline data by querying the database
   timeline_data <- reactive({
+    # Get the currently selected species (or NULL)
     species <- selected_species()
-
-    if (is.null(species)) {
-      # No species selected: Aggregate all data
-      query <- "SELECT strftime(eventDate, '%Y') as year, COUNT(*) as N
-                FROM occurrences
-                WHERE year IS NOT NULL
-                GROUP BY year ORDER BY year"
-      dbGetQuery(db_con, query)
-    } else {
-      # Species selected: Filter and aggregate
-      query <- DBI::sqlInterpolate(
-        db_con,
-        "SELECT strftime(eventDate, '%Y') as year, COUNT(*) as N
-         FROM occurrences
-         WHERE scientificName = ? AND year IS NOT NULL
-         GROUP BY year ORDER BY year",
-        species
-      )
-      dbGetQuery(db_con, query)
-    }
+    # No species selected: use default timeline data
+    if (is.null(species)) return(default_timeline)
+    # Species selected: filter and aggregate by year
+    get_timeline_cache(species)
   })
 
   # Call map module
@@ -277,18 +251,18 @@ server <- function(input, output, session) {
       prompt_subject <- 'global biodiversity data'
       fact_subject <- 'biodiversity monitoring or citizen science'
       modal_title <- 'Global Biodiversity Summary'
-      
+
       ai_prompt <- glue::glue(
         'You are a biodiversity assistant providing information about {prompt_subject}.
-        
+
         Create a concise and engaging response with the following two parts:
 
-        1.  **OVERVIEW:** Based ONLY on this data summary, provide a short 1-2 sentence overview: "{data_summary_text}" # Constraint scoped to overview, length specified
-        2.  **FUN FACT:** Using your general knowledge, provide a single interesting fact about {fact_subject}. # Explicitly mentions general knowledge
+        1.  **OVERVIEW:** Based ONLY on this data summary, provide a short 1-2 sentence overview: "{data_summary_text}"
+        2.  **FUN FACT:** Using your general knowledge, provide a single interesting fact about {fact_subject}.
 
         Format clearly with "OVERVIEW:" and "FUN FACT:" headers. Keep the total response under 500 words.'
       )
-      
+
     } else {
       # Species view
       vernacular <- current_data$vernacularName[1]
@@ -297,21 +271,20 @@ server <- function(input, output, session) {
       data_summary_text <- glue::glue(
         'Data for {vernacular_display} ({species}): {n_records} records from {format(min_date, "%Y-%m-%d")} to {format(max_date, "%Y-%m-%d")}, spanning {country_info}.'
       )
-      
-      prompt_subject <- paste('the species', species) 
+
+      prompt_subject <- paste('the species', species)
       fact_subject <- paste('the species', species)
       modal_title <- paste('AI Summary for:', species)
-      
+
       ai_prompt <- glue::glue(
         'You are a biodiversity assistant providing information about {prompt_subject}.
-        # Instruction modified for clarity, conciseness, engagement, and THREE parts
+
         Create a concise and engaging response with the following three parts:
-    
-        1.  **SPECIES INFO:** Using your general knowledge, provide a very brief (1-2 sentence) introduction to {prompt_subject}. # NEW section added
-        2.  **OVERVIEW:** Based ONLY on this data summary, provide a short 1-2 sentence overview: "{data_summary_text}" # Constraint scoped to overview, length specified
-        3.  **FUN FACT:** Using your general knowledge, provide a single interesting fact about {fact_subject}. # Explicitly mentions general knowledge
-    
-        # Formatting instruction updated for 3 headers, word count reduced
+
+        1.  **SPECIES INFO:** Using your general knowledge, provide a very brief (1-2 sentence) introduction to {prompt_subject}.
+        2.  **OVERVIEW:** Based ONLY on this data summary, provide a short 1-2 sentence overview: "{data_summary_text}"
+        3.  **FUN FACT:** Using your general knowledge, provide a single interesting fact about {fact_subject}.
+
         Format clearly with "SPECIES INFO:", "OVERVIEW:", and "FUN FACT:" headers. Keep the total response under 500 words.'
       )
     }
@@ -334,7 +307,7 @@ server <- function(input, output, session) {
           class = 'modal-body',
           'Generating summary...'
         ),
-        size = 'xl', footer = NULL, easyClose = TRUE
+        size = 'l', footer = NULL, easyClose = TRUE
       )
     )
 
@@ -366,15 +339,15 @@ server <- function(input, output, session) {
             # Style content
             content <- api_result$content
             # Replace heading markers with formatted
-            content <- gsub('SPECIES INFO:', strong('Species:'), content)
-            content <- gsub('OVERVIEW:', strong('Overview:'), content)
-            content <- gsub('FUN FACT:', strong('Fun Fact:'), content)
+            content <- gsub('SPECIES INFO:', strong('Species:\n'), content)
+            content <- gsub('OVERVIEW:', strong('Overview:\n'), content)
+            content <- gsub('FUN FACT:', strong('Fun Fact:\n'), content)
             content <- gsub('\\*\\*', '', content)
             # Convert newlines to <br> tags
             HTML(gsub('\n', '<br>', content))
           }
         ),
-        size = 'xl', footer = NULL, easyClose = TRUE
+        size = 'l', footer = NULL, easyClose = TRUE
       )
     )
   })

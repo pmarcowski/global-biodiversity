@@ -39,6 +39,9 @@
 # R Environment Variables
 .Renviron
 
+# Secrets
+secret.json
+
 # pkgdown site
 docs/
 
@@ -51,5 +54,6 @@ rsconnect/
 # Snapshot files
 tests/testthat/_snaps/
 
-# CSV files
+# Data files
 *.csv
+*.parquet

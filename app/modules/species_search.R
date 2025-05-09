@@ -23,7 +23,7 @@ species_search_ui <- function(id) {
 }
 
 # Server function for species search module
-species_search_server <- function(id, db_con) { # Changed occurence to db_con
+species_search_server <- function(id, lookup_data) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     # Reactive value to store selected species
@@ -33,11 +33,8 @@ species_search_server <- function(id, db_con) { # Changed occurence to db_con
     observeEvent(input$search_btn, {
       search_query <- input$query_species
       if (search_query != "") {
-        # Search species in the database
-        filtered_species_df <- search_species(search_query, db_con) # Use db_con
-
-        # Convert result to data.table for subsequent operations
-        filtered_species <- setDT(filtered_species_df)
+        # Search species in the lookup
+        filtered_species <- search_species(search_query, lookup_data)
 
         if (nrow(filtered_species) == 0) {
           # Display message if no species found
@@ -52,6 +49,7 @@ species_search_server <- function(id, db_con) { # Changed occurence to db_con
             radioButtons(ns("select_species"), NULL,
                          choiceNames = lapply(species_choices$choice_name, HTML),
                          choiceValues = species_choices$scientificName,
+                         selected = character(0),
                          inline = FALSE
             )
           })
